@@ -66,7 +66,7 @@ class MycelialNetwork:
 
             # Find merge candidates
             r_merge = 0.5  # Merge radius
-            merge_prob = min(0.5, self.β * self.ρ * 1e-3 * self.Δt * 100)  # Boosted probability
+            merge_prob = min(0.5, self.β * self.ρ * 1e-3 * self.Δt * 1000)  # Increased probability
 
             merged_indices = set()
 
@@ -76,7 +76,7 @@ class MycelialNetwork:
                         midpoint = (self.tip_positions[i] + self.tip_positions[j]) / 2
                         merged_positions.append(midpoint)
                         merged_indices.update([i, j])
-                        self.ρ = min(self.ρ + 0.5, self.ρ_sat)  # Smaller density increase
+                        self.ρ = min(self.ρ + 10, self.ρ_sat)  # Larger density increase
 
             # Apply merges
             if merged_indices:
@@ -105,7 +105,11 @@ class MycelialNetwork:
 
         # Diagnostic output
         if self.time % 1 < self.Δt:  # Print once per hour
-            print(f"t={self.time:.1f}hr: tips={self.tips}, mergers={len(merged_positions)}, ρ={self.ρ:.1f}")
+            print(f"t={self.time:.1f}hr: tips={self.tips}, mergers={len(merged_positions)//2}, ρ={self.ρ:.1f}")
+            if len(self.tip_positions) > 1:
+                print(f"Distance matrix: {dist_matrix}")
+                print(f"Merged indices: {merged_indices}")
+                print(f"Merged positions: {merged_positions}")
 
     def run(self):
         print(f"t={self.time:.1f}hr: tips={self.tips:.2f} (pullers={self.puller_tips:.2f}), ρ={self.ρ:.4f} μm")
