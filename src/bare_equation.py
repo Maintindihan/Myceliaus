@@ -54,7 +54,7 @@ class MycelialNetwork:
             puller_indices = np.unique(puller_indices.astype(int))
             puller_indices = puller_indices[puller_indices < n_tips]  # Ensure valid indices
     
-        # Branching - create new tips
+        # Branching behvaior implemented
         new_tips = []
         for i, tip in enumerate(self.tip_positions):
             if np.random.rand() < self.α * self.Δt:
