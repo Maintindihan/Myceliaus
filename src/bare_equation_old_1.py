@@ -5,15 +5,15 @@ import os
 class MycelialNetwork:
     def __init__(self):
         # Parameters from paper
-        self.α = 0.15     # Branching rate (/hr)
-        self.β = 0.00001  # Anastomosis coefficient (μm hr)
+        self.α = 0.15     # Increased branching rate (/hr)
+        self.β = 0.00001 # Decreased anastomosis coefficient (μm hr)
         self.v_avg = 2.4   # Average tip speed (μm/hr)
         self.v_p = 2.8     # Puller tip speed (μm/hr)
         self.puller_frac = 0.3  # 30% puller tips
         self.ρ_sat = 1700.0 # Saturation density (μm⁻¹)
 
         # Simulation parameters
-        self.Δt = 0.01    # Small time step (hr)
+        self.Δt = 0.01    # Smaller timestep (hr)
         self.total_time = 100
         self.plot_interval = 5  # Plot every 5 hours
 
@@ -60,8 +60,9 @@ class MycelialNetwork:
         n_pullers = max(1, int(n_tips * self.puller_frac))
         n_pullers = min(n_pullers, n_tips) if n_tips > 0 else 0
 
-        # Initialize puller indices
+        # Initialize puller indices - NEW IMPROVED VERSION
         puller_indices = np.array([], dtype=int)
+        
         if n_tips > 0:
             # Method 1: Random selection (strict 30% enforcement)
             if n_pullers > 0:
@@ -74,8 +75,8 @@ class MycelialNetwork:
             norms = np.linalg.norm(self.tip_positions, axis=1, keepdims=True)
             radial = self.tip_positions / (norms + 1e-5)
 
-            # Controlled Branching with proper puller inheritance
-            if self.time - self.last_branch_time >= 1.0 / self.target_growth_rate:
+            # CONTROLLED BRANCHING with proper puller inheritance
+            if self.time - self.last_branch_time >= 1.0/self.target_growth_rate:
                 if np.random.rand() < 0.7:  # 70% chance to branch
                     new_pos = self.tip_positions[-1] + radial[-1] * 0.5 + np.random.normal(0, 0.3, 2)
                     is_puller = np.random.rand() < self.puller_frac  # 30% chance to be puller
@@ -83,14 +84,14 @@ class MycelialNetwork:
 
                     # Update puller indices if new tip is puller
                     if is_puller:
-                        puller_indices = np.append(puller_indices, len(self.tip_positions) - 1)
+                        puller_indices = np.append(puller_indices, len(self.tip_positions)-1)
                     self.last_branch_time = self.time
 
-            # Controlled Anastomosis with puller ratio protection
+            # CONTROLLED ANASTOMOSIS with puller ratio protection
             if self.time - self.last_merger_check >= self.merger_interval:
                 if n_tips > 1 and np.random.rand() < 0.5:  # 50% chance per interval
                     non_pullers = [i for i in range(n_tips) if i not in puller_indices]
-                    current_puller_ratio = len(puller_indices) / n_tips if n_tips > 0 else 0
+                    current_puller_ratio = len(puller_indices)/n_tips if n_tips > 0 else 0
 
                     # Only merge if we have excess non-pullers (protect 30% ratio)
                     if len(non_pullers) > n_tips * (1 - self.puller_frac):
@@ -103,7 +104,7 @@ class MycelialNetwork:
                         puller_indices[puller_indices > remove_idx] -= 1
                 self.last_merger_check = self.time
 
-            # Movement with puller speed differentiation
+            # MOVEMENT with puller speed differentiation
             movement = np.zeros_like(self.tip_positions)
             if len(self.tip_positions) > 0:
                 # Recalculate radial vectors after changes
@@ -123,7 +124,7 @@ class MycelialNetwork:
 
                 self.tip_positions += movement * speeds[:, None]
 
-        # Linear Density Update
+        # LINEAR DENSITY UPDATE
         self.ρ = min(5.6 * len(self.tip_positions), self.ρ_sat)  # 5.6 μm per tip
 
         # Update tracking variables
@@ -134,7 +135,7 @@ class MycelialNetwork:
         self.tips_series.append(self.tips)
         self.ρ_series.append(self.ρ)
         self.total_merger_count += merger_count
-
+        
     def run(self):
         print("Time(hr) | Tips | Pullers | Density(μm) | % Saturation | Mergers")
         print("--------------------------------------------------------")
@@ -143,30 +144,15 @@ class MycelialNetwork:
         while self.time < self.total_time:
             self.update()
             # Print every hour instead of every 5 hours
-            if abs(self.time % 1) < self.Δt:
+            if abs(self.time % 1) < self.Δt:  
                 self.print_status(int(self.time))
                 self.plot_network(int(self.time))  # Still plot every hour
 
-    def network_stats(self):
-        if len(self.tip_positions) < 2:
-            return {}
 
-        # Calculate average distance between tips
-        dists = np.linalg.norm(self.tip_positions[:, None] - self.tip_positions[None, :], axis=-1)
-        avg_dist = np.mean(dists[dists > 0])
-
-        return {
-            'avg_tip_distance': avg_dist,
-            'density_ratio': self.ρ / self.ρ_sat,
-            'branching_rate': current_α  # From earlier
-        }
-
+    # Update print_status method to use total_merger_count
     def print_status(self, time_index):
-        # Calculate merger count (you'll need to track this in update())
-        merger_count = getattr(self, 'last_merger_count', 0)
-
         print(f"{self.time:6.1f} | {self.tips:4} | {self.puller_tips:7} | "
-              f"{self.ρ:10.1f} | {self.ρ / self.ρ_sat * 100:5.1f}% | "
+              f"{self.ρ:10.1f} | {self.ρ/self.ρ_sat*100:5.1f}% | "
               f"{self.total_merger_count:6}")
 
     def plot_network(self, time_index):
@@ -198,11 +184,12 @@ class MycelialNetwork:
             )
             # Show connections within merge distance
             for i in range(len(self.tip_positions)):
-                for j in range(i + 1, len(self.tip_positions)):
-                    if dist_matrix[i, j] < 1.5:  # Slightly larger than merge distance for visibility
-                        plt.plot([self.tip_positions[i, 0], self.tip_positions[j, 0]],
-                                 [self.tip_positions[i, 1], self.tip_positions[j, 1]],
-                                 'g-', alpha=0.3, linewidth=0.5)
+                for j in range(i+1, len(self.tip_positions)):
+                    if dist_matrix[i,j] < 1.5:  # Slightly larger than merge distance for visibility
+                        plt.plot([self.tip_positions[i,0], self.tip_positions[j,0]],
+                                [self.tip_positions[i,1], self.tip_positions[j,1]],
+                                'g-', alpha=0.3, linewidth=0.5)
+
 
 # Run simulation
 model = MycelialNetwork()
