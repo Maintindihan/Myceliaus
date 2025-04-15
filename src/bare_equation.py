@@ -72,63 +72,33 @@ class MycelialNetwork:
             if n_pullers > 0:
                 puller_indices = np.random.choice(n_tips, size=n_pullers, replace=False)
 
-            # Calculate true radial directions from origin
-            radial_directions = self.tip_positions / (np.linalg.norm(self.tip_positions, axis=1, keepdims=True) + 1e-8)
+            # Calculate radial vectors
+            norms = np.linalg.norm(self.tip_positions, axis=1, keepdims=True)
+            radial = self.tip_positions / (norms + 1e-5)
 
-            # Controlled Branching with radial expansion
+            # Controlled Branching with proper puller inheritance
             if self.time - self.last_branch_time >= 1.0 / self.target_growth_rate:
                 if np.random.rand() < 0.7:  # 70% chance to branch
                     parent_idx = np.random.randint(n_tips)
                     parent_pos = self.tip_positions[parent_idx]
-                    # parent_dir = radial[parent_idx]
+                    parent_dir = radial[parent_idx]
 
-                    # Special case for first few branches
-                    if len(self.tip_positions) <= 4:
-                        # Create branches at 90 degree intervals for initial spread
-                        branch_angle = (np.pi/2) * (len(self.tip_positions)-1)
-                        new_dir = np.array([np.cos(branch_angle), np.sin(branch_angle)])
-                    else:
-                        # Normal brnaching with wider angle variation
-                        parent_dir = radial_directions[parent_idx]
-                        branch_angle = np.random.normal(0, np.pi/3) # Wide angle varation (60" std dev)
+                    # Create new branch direction with full circle coverage
+                    branch_angle = np.random.uniform(0, 2 * np.pi)  # Full circle
+                    rot_matrix = np.array([
+                        [np.cos(branch_angle), -np.sin(branch_angle)],
+                        [np.sin(branch_angle), np.cos(branch_angle)]
+                    ])
+                    new_dir = np.dot(rot_matrix, parent_dir)
 
-                        rot_matrix = np.array([
-                            [np.cos(branch_angle), -np.sin(branch_angle)],
-                            [np.sin(branch_angle), np.cos(branch_angle)]
-                        ])
-                        new_dir = np.dot(rot_matrix, parent_dir)
-
-                    new_pos = parent_pos + new_dir * 1.0 # Implementing a slightly larger initial step
-                    new_pos += np.random.normal(0, 0.2, 2) # Smaller position niose
-
+                    new_pos = parent_pos + new_dir * 0.5 + np.random.normal(0, 0.3, 2)
                     is_puller = np.random.rand() < self.puller_frac  # 30% chance to be puller
                     self.tip_positions = np.vstack([self.tip_positions, new_pos])
 
                     # Update puller indices if new tip is puller
                     if is_puller:
                         puller_indices = np.append(puller_indices, len(self.tip_positions) - 1)
-
                     self.last_branch_time = self.time
-
-            # Movement with proper radial expansion
-            if len(self.tip_positions) > 0:
-                #Recalculate true radial directions
-                radial_directions = self.tip_positions / (np.linalg.norm(self.tip_positions, keepdims=True) + 1e-8) 
-                # Create angular noise that will be better than the positional noise
-                angle_noise = np.random.normal(0, 0.3, len(self.tip_positions)) # In radians
-                movement = np.zeros_like(self.tip_positions)
-
-                for i in range(len(self.tip_positions)):
-                    # Rotate the radial direction by small angle
-                    rot_matrix = np.array([
-                        [np.cos(angle_noise[i]), -np.sin(angle_noise[i])],
-                        [np.sin(angle_noise[i]), np.cos(angle_noise[i])]
-                    ])
-                    movement[i] = rot_matrix @ radial_directions[i]
-
-                    # Apply speed
-                    speed = self.v_p if i in puller_indices else self.v_avg
-                    self.tip_positions[i] += movement[i] * speed * self.Δt
 
             # Controlled Anastomosis with puller ratio protection
             if self.time - self.last_merger_check >= self.merger_interval:
@@ -178,8 +148,7 @@ class MycelialNetwork:
         self.tips_series.append(self.tips)
         self.ρ_series.append(self.ρ)
         self.total_merger_count += merger_count
-
-
+        
     def run(self):
         print("Time(hr) | Tips | Pullers | Density(μm) | % Saturation | Mergers")
         print("--------------------------------------------------------")
