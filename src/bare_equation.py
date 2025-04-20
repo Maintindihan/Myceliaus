@@ -72,39 +72,79 @@ class MycelialNetwork:
             if n_pullers > 0:
                 puller_indices = np.random.choice(n_tips, size=n_pullers, replace=False)
 
-            # Calculate radial vectors
-            norms = np.linalg.norm(self.tip_positions, axis=1, keepdims=True)
-            radial = self.tip_positions / (norms + 1e-5)
+            # Enhanced radial direction calculation
+            radial_directions = np.zeros_like(self.tip_positions)
+            for i, pos in enumerate(self.tip_positions):
+                dist = np.linalg.norm(pos)
+                if dist > 0:
+                    radial_directions[i] = pos / dist
+                else:
+                    radial_directions[i] = np.random.uniform(-1, 1, 2) # Random direcion if at center
 
             # Controlled Branching with proper puller inheritance
             if self.time - self.last_branch_time >= 1.0 / self.target_growth_rate:
                 if np.random.rand() < 0.7:  # 70% chance to branch
                     parent_idx = np.random.randint(n_tips)
                     parent_pos = self.tip_positions[parent_idx]
-                    parent_dir = radial[parent_idx]
+                    parent_dir = radial_directions[parent_idx]
 
-                    # Create new branch direction with full circle coverage
-                    branch_angle = np.random.uniform(0, 2 * np.pi)  # Full circle
-                    rot_matrix = np.array([
-                        [np.cos(branch_angle), -np.sin(branch_angle)],
-                        [np.sin(branch_angle), np.cos(branch_angle)]
-                    ])
-                    new_dir = np.dot(rot_matrix, parent_dir)
+                    # Need to create a wider branching angle
+                    if len(self.tip_positions) > 16:
+                        branch_angle = (2*np.pi/16) * len(self.tip_positions)
+                        new_dir =  np.array([np.cos(branch_angle), np.sin(branch_angle)])
+                    else:
+                        branch_angle = np.random.normal(0, np.pi/2) # 90 std dev
+                        rot_matrix = np.array([
+                            [np.cos(branch_angle), -np.sin(branch_angle)],
+                            [np.sin(branch_angle), np.cos(branch_angle)]
+                        ])
+                        new_dir = rot_matrix @ parent_dir
 
-                    new_pos = parent_pos + new_dir * 0.5 + np.random.normal(0, 0.3, 2)
-                    is_puller = np.random.rand() < self.puller_frac  # 30% chance to be puller
+                    new_pos = parent_pos + new_dir * 1.5
+                    new_pos += np.random.normal(0, 0.1, 2) # Small position noise
+                    is_puller = np.random.rand() < self.puller_frac
                     self.tip_positions = np.vstack([self.tip_positions, new_pos])
 
-                    # Update puller indices if new tip is puller
                     if is_puller:
                         puller_indices = np.append(puller_indices, len(self.tip_positions) - 1)
+
                     self.last_branch_time = self.time
+            
+            # Enhanced movement with repulsion
+            if len(self.tip_positions) > 0:
+                movement = np.zeros_like(self.tip_positions)
+
+                # 1. Strong radial outward component
+                norms = np.linalg.norm(self.tip_positions, axis=1, keepdims=True)
+                radial = self.tip_positions / (norms + 1e-5)
+                random_component = np.random.normal(0,  0.3, size=self.tip_positions.shape)
+
+                movement = 0.6 * radial + 0.4 * random_component
+
+                # 2. Add angular repulsion to prevent clustering
+                for i in range(len(self.tip_positions)):
+                    repulsion = np.zeros(2)
+                    for j in range(len(self.tip_positions)):
+                        if i !=  j:
+                            vec = self.tip_positions[i] - self.tip_positions[j]
+                            dist = np.linalg.norm(vec)
+                            if dist < 5: # Only repel nearby tips
+                                repulsion += 0.2 * vec / (dist**2 +1e-5)
+                    movement[i] += repulsion
+                
+                # Normalize and apply movement
+                movement = movement / (np.linalg.norm(movement, axis=1, keepdims=True) + 1e-5)
+
+                speeds = np.full(len(self.tip_positions), self.v_avg * self.Δt)
+                if  len(puller_indices) > 0:
+                    valid_pullers = puller_indices[puller_indices < len(speeds)]
+                    speeds[valid_pullers.astype(int)] = self.v_p * self.Δt
+                self.tip_positions += movement * speeds[:, None]
 
             # Controlled Anastomosis with puller ratio protection
             if self.time - self.last_merger_check >= self.merger_interval:
                 if n_tips > 1 and np.random.rand() < 0.5:  # 50% chance per interval
                     non_pullers = [i for i in range(n_tips) if i not in puller_indices]
-                    current_puller_ratio = len(puller_indices) / n_tips if n_tips > 0 else 0
 
                     # Only merge if we have excess non-pullers (protect 30% ratio)
                     if len(non_pullers) > n_tips * (1 - self.puller_frac):
@@ -117,25 +157,6 @@ class MycelialNetwork:
                         puller_indices[puller_indices > remove_idx] -= 1
                 self.last_merger_check = self.time
 
-            # Movement with puller speed differentiation
-            movement = np.zeros_like(self.tip_positions)
-            if len(self.tip_positions) > 0:
-                # Recalculate radial vectors after changes
-                norms = np.linalg.norm(self.tip_positions, axis=1, keepdims=True)
-                radial = self.tip_positions / (norms + 1e-5)
-
-                # Movement calculation with more randomness
-                random_component = np.random.normal(0, 0.3, size=self.tip_positions.shape)
-                movement = 0.6 * radial + 0.4 * random_component
-                movement = movement / (np.linalg.norm(movement, axis=1, keepdims=True) + 1e-5)
-
-                # Apply speeds (puller tips move faster)
-                speeds = np.full(len(self.tip_positions), self.v_avg * self.Δt)
-                if len(puller_indices) > 0:
-                    valid_pullers = puller_indices[puller_indices < len(speeds)]
-                    speeds[valid_pullers.astype(int)] = self.v_p * self.Δt
-
-                self.tip_positions += movement * speeds[:, None]
 
         # Linear density update
         self.ρ = min(5.6 * len(self.tip_positions), self.ρ_sat)  # 5.6 μm per tip
