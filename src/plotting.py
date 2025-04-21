@@ -67,6 +67,7 @@ def plot_network(time_series, tips_series, rho_series, tip_positions, output_dir
     plt.scatter(tip_positions[:, 0], tip_positions[:, 1], color='blue', label='Tips', s=5)
 
     # Plot hyphal density as a background color
+    density_background = np.full((100, 100), rho_series[-1] / ρ_sat)
     plt.imshow(np.full((100, 100), rho_series[-1] / ρ_sat), extent=(-10, 10, -10, 10), cmap='Greens', alpha=0.5)
 
     # Draw connections between merged tips

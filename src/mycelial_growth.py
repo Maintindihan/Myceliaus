@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import os
 
 class MycelialNetwork:
@@ -14,8 +13,8 @@ class MycelialNetwork:
 
         # Simulation parameters
         self.Δt = 0.01    # Smaller timestep (hr)
-        self.total_time = 1000
-        self.plot_interval = 5  # Plot every 5 hours
+        self.total_time = total_time
+        self.plot_interval = plot_interval  # Plot every 5 hours
 
         # Initial state
         self.tips = 1.0
@@ -135,62 +134,12 @@ class MycelialNetwork:
         self.tips_series.append(self.tips)
         self.ρ_series.append(self.ρ)
         self.total_merger_count += merger_count
-        
-#     def run(self):
-#         print("Time(hr) | Tips | Pullers | Density(μm) | % Saturation | Mergers")
-#         print("--------------------------------------------------------")
-#         self.print_status(0)  # Initial state
 
-#         while self.time < self.total_time:
-#             self.update()
-#             # Print every 10 hours
-#             if abs(self.time % 50) < self.Δt:  
-#                 self.print_status(int(self.time))
-#                 self.plot_network(int(self.time))  # Still plot every hour
-
+        # Debug print
+        # print(f"Updated time: {self.time:.2f}, Tips: {self.tips}, Density: {self.ρ:.2f}")
 
     # Update print_status method to use total_merger_count
     def print_status(self, time_index):
         print(f"{self.time:6.1f} | {self.tips:4} | {self.puller_tips:7} | "
               f"{self.ρ:10.1f} | {self.ρ/self.ρ_sat*100:5.1f}% | "
               f"{self.total_merger_count:6}")
-
-#     def plot_network(self, time_index):
-#         plt.figure(figsize=(6, 6))
-
-#         # Plot tips at their actual positions
-#         plt.scatter(self.tip_positions[:, 0], self.tip_positions[:, 1], color='blue', label='Tips', s=5)
-
-#         # Plot hyphal density as a background color
-#         plt.imshow(np.full((100, 100), self.ρ / self.ρ_sat), extent=(-10, 10, -10, 10), cmap='Greens', alpha=0.5)
-
-#         plt.title(f'Mycelial Network at t={self.time:.1f} hr')
-#         plt.xlim(-10, 10)
-#         plt.ylim(-10, 10)
-#         plt.xlabel('X Position')
-#         plt.ylabel('Y Position')
-#         plt.legend()
-
-#         # Save the plot as an image file
-#         plot_filename = os.path.join(self.output_dir, f'network_t={time_index:03d}hr.png')
-#         plt.savefig(plot_filename)
-#         plt.close()
-
-#         # Draw connections between merged tips
-#         if len(self.tip_positions) > 1:
-#             dist_matrix = np.linalg.norm(
-#                 self.tip_positions[:, None] - self.tip_positions[None, :],
-#                 axis=-1
-#             )
-#             # Show connections within merge distance
-#             for i in range(len(self.tip_positions)):
-#                 for j in range(i+1, len(self.tip_positions)):
-#                     if dist_matrix[i,j] < 1.5:  # Slightly larger than merge distance for visibility
-#                         plt.plot([self.tip_positions[i,0], self.tip_positions[j,0]],
-#                                 [self.tip_positions[i,1], self.tip_positions[j,1]],
-#                                 'g-', alpha=0.3, linewidth=0.5)
-
-
-# # Run simulation
-# model = MycelialNetwork()
-# model.run()
