@@ -2,7 +2,7 @@ import numpy as np
 import os
 
 class MycelialNetwork:
-    def __init__(self, total_time=1000, plot_interval=10):
+    def __init__(self, total_time=1000, plot_interval=50):
         # Parameters from paper
         self.α = 0.15     # Increased branching rate (/hr)
         self.β = 0.00001 # Decreased anastomosis coefficient (μm hr)
@@ -140,6 +140,36 @@ class MycelialNetwork:
 
     # Update print_status method to use total_merger_count
     def print_status(self, time_index):
-        print(f"{self.time:6.1f} | {self.tips:4} | {self.puller_tips:7} | "
+        status_str = (f"{self.time:6.1f} | {self.tips:4} | {self.puller_tips:7} | "
               f"{self.ρ:10.1f} | {self.ρ/self.ρ_sat*100:5.1f}% | "
               f"{self.total_merger_count:6}")
+        
+         # Add tip coordinates
+        # status_str += "\n  Tip Positions:"
+        # for i, pos in enumerate(self.tip_positions):
+        #     status_str += f"\n    Tip {i+1}: ({pos[0]:.2f}, {pos[1]:.2f})"
+
+        # # Add movement vectors if available
+        # if hasattr(self, 'prev_positions') and len(self.prev_positions) == len(self.tip_positions):
+        #     status_str += "\n  Movement Vectors:"
+        #     for i, (prev, curr) in enumerate(zip(self.prev_positions, self.tip_positions)):
+        #         dx, dy = curr - prev
+        #         status_str += f"\n    Tip {i+1}: Δ({dx:.2f}, {dy:.2f})"
+
+        print(status_str)
+
+    def run(self):
+        print("Time(hr) | Tips | Pullers | Density(μm) | % Saturation | Mergers")
+        print("--------------------------------------------------------")
+        self.print_status(0)  # Initial state
+
+        while self.time < self.total_time:
+            self.update()
+            # Print every 1 hours
+            if abs(self.time % self.plot_interval) < self.Δt:  
+                self.print_status(int(self.time))
+
+# Run simulation
+model = MycelialNetwork()
+model.run()
+
